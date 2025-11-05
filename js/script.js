@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-  // Seleccionar elementos
+  // Seleccionar elementos con verificación
   const openBtn = document.getElementById('open-chat');
   const chatbot = document.getElementById('chatbot');
   const closeBtn = document.getElementById('chat-close');
@@ -7,18 +7,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const input = document.getElementById('chat-input');
   const body = document.getElementById('chat-body');
   const nav = document.querySelector('.nav');
-  const toggle = document.querySelector('.header-inner');
+  const toggle = document.querySelector('.header-inner'); // Asumiendo que ::after es para hamburguesa
 
-  // Verificar que los elementos necesarios existan
   if (!openBtn || !chatbot || !closeBtn || !form || !input || !body) {
-    console.error(`Error: Elementos del chatbot no encontrados en la página ${document.body.dataset.page || 'desconocida'}.`, {
-      openBtn: !!openBtn,
-      chatbot: !!chatbot,
-      closeBtn: !!closeBtn,
-      form: !!form,
-      input: !!input,
-      body: !!body
-    });
+    console.error('Elementos del chatbot no encontrados.');
     return;
   }
 
@@ -26,34 +18,36 @@ document.addEventListener('DOMContentLoaded', () => {
   const currentYear = document.querySelector('.current-year');
   if (currentYear) {
     currentYear.textContent = new Date().getFullYear();
-    console.log('Año actual establecido:', currentYear.textContent);
   }
 
-  // DETECTAR PÁGINA
+  // Detectar página
   const pagina = document.body.dataset.page || 'inicio';
-  console.log(`Página detectada: ${pagina}`);
 
-  // RESPUESTAS POR PÁGINA Y FAQ (sin precios)
+  // Respuestas por página y FAQ (sin precios)
   const respuestas = {
     inicio: {
       saludo: "¡Hola! Bienvenido a Ycay360. Ofrecemos:\n• Servicios Hogar\n• Soporte técnico\n• Pintura profesional\n\n¿Cuál te interesa?",
       default: "Perfecto. Un experto te ayudará por WhatsApp en minutos.\n\n¿Listo para chatear?",
-      despedida: "¡Genial! Te redirigimos a WhatsApp..."
+      despedida: "¡Genial! Te redirigimos a WhatsApp...",
+      ayuda: "Preguntas comunes:\n- Ubicación\n- Horario\n- Servicios\n- Contacto\n\n¿Qué quieres saber?"
     },
     servicios: {
       saludo: "¡Hola! Estás en **Servicios Hogar**.\n\nTe ofrecemos:\n• Drywall\n• Plomería\n• Electricidad\n• Remodelaciones\n\n¿Quieres que un experto te contacte?",
       default: "Entendido. Un especialista te escribirá por WhatsApp.\n\n¿Te parece bien?",
-      despedida: "¡Perfecto! Abriendo WhatsApp..."
+      despedida: "¡Perfecto! Abriendo WhatsApp...",
+      ayuda: "FAQ para Servicios Hogar:\n- ¿Incluye materiales?\n- Tiempos de ejecución\n\nEscribe tu pregunta."
     },
     soporte: {
       saludo: "¡Hola! Estás en **Soporte TIC**.\n\nServicios:\n• Mantenimiento de PC\n• Redes WiFi\n• Soporte remoto o presencial\n• Recuperación de datos\n\n¿En qué necesitas ayuda?",
       default: "Claro. Un técnico te contactará por WhatsApp para resolverlo.\n\n¿Listo?",
-      despedida: "¡Excelente! Te conectamos ahora..."
+      despedida: "¡Excelente! Te conectamos ahora...",
+      ayuda: "FAQ para Soporte TIC:\n- Soporte remoto disponible?\n- Garantía en reparaciones\n\n¿Más detalles?"
     },
     pintura: {
       saludo: "¡Hola! Estás en **Pintura Profesional**.\n\nIncluye:\n• Preparación de superficies\n• Pinturas premium\n• Acabados perfectos\n• Garantías\n\n¿Quieres una cotización personalizada?",
       default: "Perfecto. Un pintor experto te escribirá por WhatsApp.\n\n¿Seguimos?",
-      despedida: "¡Listo! Te redirigimos..."
+      despedida: "¡Listo! Te redirigimos...",
+      ayuda: "FAQ para Pintura:\n- Tipos de pintura\n- Preparación requerida\n\n¿Qué dudas tienes?"
     },
     faq: {
       ubicacion: "Estamos ubicados en Bello, Colombia. ¿Quieres que te demos más detalles por WhatsApp?",
@@ -63,26 +57,25 @@ document.addEventListener('DOMContentLoaded', () => {
       contacto: "Puedes contactarnos por WhatsApp al +57 304 2096459 o por correo a contacto@ycay360.com. ¿Prefieres que te llamemos o seguimos por WhatsApp?"
     }
   };
-
   const r = respuestas[pagina];
 
-  // CARGAR CONVERSACIÓN Y ESTADO DESDE SESSIONSTORAGE
+  // Cargar conversación y estado desde sessionStorage
   let conversacion = [];
   let currentState = sessionStorage.getItem('chat_state') || 'inicio';
   try {
     conversacion = JSON.parse(sessionStorage.getItem('chatbot_conversation')) || [];
-    console.log(`Conversación cargada desde sessionStorage: ${conversacion.length} mensajes, estado: ${currentState}`);
   } catch (error) {
-    console.error('Error al cargar conversación desde sessionStorage:', error);
+    console.error('Error al cargar conversación:', error);
     sessionStorage.removeItem('chatbot_conversation');
     sessionStorage.removeItem('chat_state');
     currentState = 'inicio';
   }
 
-  // VERIFICAR SI EL SALUDO YA FUE MOSTRADO EN LA SESIÓN
+  // Verificar si el saludo ya fue mostrado y si el chat fue cerrado previamente
   const greetingShown = sessionStorage.getItem('chatbot_greeting_shown');
+  const chatClosed = localStorage.getItem('chatbot_closed') === 'true'; // Recordar cierre para no auto-abrir
 
-  // TIMERS PARA INACTIVIDAD
+  // Timers para inactividad
   let inactivityTimer;
   let resetTimer;
 
@@ -95,12 +88,12 @@ document.addEventListener('DOMContentLoaded', () => {
         mostrarMensaje('¿Sigues ahí?', 'bot');
         currentState = 'esperando_respuesta_inactividad';
         sessionStorage.setItem('chat_state', currentState);
-        resetTimer = setTimeout(resetChat, 60000); // 1 min para responder, luego reset
+        resetTimer = setTimeout(resetChat, 60000); // 1 min para reset
       }
-    }, 120000); // 2 min de inactividad
+    }, 120000); // 2 min inactividad
   }
 
-  // Función para resetear el chat por inactividad
+  // Función para resetear chat
   function resetChat() {
     if (!chatbot.classList.contains('open')) return;
     conversacion = [];
@@ -110,85 +103,70 @@ document.addEventListener('DOMContentLoaded', () => {
     sessionStorage.removeItem('chatbot_greeting_shown');
     sessionStorage.setItem('chat_state', currentState);
     mostrarMensaje('Chat reiniciado por inactividad. ¡Hola de nuevo!', 'bot');
-    console.log('Chat reiniciado por inactividad');
   }
 
-  // ASEGURAR QUE EL CHATBOT ESTÉ CERRADO INICIALMENTE
-  chatbot.classList.remove('open');
+  // Inicializar chatbot cerrado
   chatbot.classList.add('closed');
   openBtn.style.display = 'flex';
-  console.log(`Chatbot inicializado como cerrado en ${pagina}, botón open-chat visible`);
 
-  // ABRIR CHATBOT AUTOMÁTICAMENTE DESPUÉS DE 2 SEGUNDOS (SIN MENSAJES)
-  setTimeout(() => {
-    try {
+  // Auto-abrir solo si no fue cerrado previamente y después de 2s
+  if (!chatClosed) {
+    setTimeout(() => {
       chatbot.classList.remove('closed');
       chatbot.classList.add('open');
       openBtn.style.display = 'none';
-      console.log(`Chatbot abierto automáticamente en ${pagina}, sin mostrar mensajes`);
-    } catch (error) {
-      console.error(`Error al abrir el chatbot automáticamente en ${pagina}:`, error);
-    }
-  }, 2000);
+      input.focus(); // Accesibilidad: focus en input
+    }, 2000);
+  }
 
-  // CERRAR CHATBOT
+  // Cerrar chatbot
   closeBtn.addEventListener('click', () => {
-    try {
-      chatbot.classList.remove('open');
-      chatbot.classList.add('closed');
-      openBtn.style.display = 'flex';
-      currentState = 'inicio'; // Resetear estado al cerrar
-      sessionStorage.setItem('chat_state', currentState);
-      clearTimeout(inactivityTimer);
-      clearTimeout(resetTimer);
-      console.log(`Chatbot cerrado manualmente en ${pagina}, botón open-chat restaurado`);
-    } catch (error) {
-      console.error(`Error al cerrar el chatbot en ${pagina}:`, error);
-    }
+    chatbot.classList.add('closed');
+    chatbot.classList.remove('open');
+    openBtn.style.display = 'flex';
+    currentState = 'inicio';
+    sessionStorage.setItem('chat_state', currentState);
+    localStorage.setItem('chatbot_closed', 'true'); // Recordar cierre
+    clearTimeout(inactivityTimer);
+    clearTimeout(resetTimer);
   });
 
-  // ABRIR CHAT
+  // Abrir chatbot
   openBtn.addEventListener('click', () => {
-    try {
-      chatbot.classList.remove('closed');
-      chatbot.classList.add('open');
-      openBtn.style.display = 'none';
-      // Mostrar conversación previa
-      if (conversacion.length > 0) {
-        body.innerHTML = ''; // Limpiar el cuerpo para evitar duplicados
-        conversacion.forEach(msg => mostrarMensaje(msg.text, msg.type));
-        console.log(`Conversación previa mostrada en ${pagina}: ${conversacion.length} mensajes`);
-      }
-      if (currentState === 'inicio' && !greetingShown) {
-        mostrarMensaje(r.saludo, 'bot');
-        sessionStorage.setItem('chatbot_greeting_shown', 'true');
-        currentState = 'esperando_respuesta';
-        sessionStorage.setItem('chat_state', currentState);
-      }
-      resetInactivityTimers();
-      console.log(`Chatbot abierto manualmente en ${pagina}, estado: ${currentState}`);
-    } catch (error) {
-      console.error(`Error al abrir el chatbot en ${pagina}:`, error);
+    chatbot.classList.remove('closed');
+    chatbot.classList.add('open');
+    openBtn.style.display = 'none';
+    localStorage.removeItem('chatbot_closed'); // Olvidar cierre al abrir manualmente
+    // Mostrar conversación previa
+    body.innerHTML = '';
+    conversacion.forEach(msg => mostrarMensaje(msg.text, msg.type));
+    if (currentState === 'inicio' && !greetingShown) {
+      mostrarMensaje(r.saludo, 'bot');
+      sessionStorage.setItem('chatbot_greeting_shown', 'true');
+      currentState = 'esperando_respuesta';
+      sessionStorage.setItem('chat_state', currentState);
     }
+    input.focus(); // Accesibilidad
+    resetInactivityTimers();
   });
 
-  // DEFINIR MÁQUINA DE ESTADOS
+  // Máquina de estados (expandida con 'ayuda')
   const states = {
     inicio: (input, page) => {
       const r = respuestas[page];
-      let respuesta = r.saludo;
       sessionStorage.setItem('chatbot_greeting_shown', 'true');
       currentState = 'esperando_respuesta';
-      return respuesta;
+      return r.saludo;
     },
     esperando_respuesta: (input, page) => {
       const r = respuestas[page];
       const msg = input.toLowerCase();
       let respuesta = r.default;
       let faqType = null;
-
       if (msg.includes('hola') || msg.includes('buenas') || msg.includes('saludos')) {
         respuesta = r.saludo;
+      } else if (msg.includes('ayuda') || msg.includes('faq') || msg.includes('preguntas')) {
+        respuesta = r.ayuda || respuestas.faq.servicios; // Expandido
       } else if (msg.includes('ubicación') || msg.includes('ubicacion') || msg.includes('dónde') || msg.includes('donde') || msg.includes('están') || msg.includes('estan')) {
         respuesta = respuestas.faq.ubicacion;
         faqType = 'ubicacion';
@@ -213,7 +191,6 @@ document.addEventListener('DOMContentLoaded', () => {
         mostrarBotonWhatsApp(page);
         return respuesta;
       }
-
       if (faqType) {
         currentState = 'esperando_confirmacion';
       } else {
@@ -227,7 +204,6 @@ document.addEventListener('DOMContentLoaded', () => {
       const r = respuestas[page];
       const msg = input.toLowerCase();
       const lastFaqType = sessionStorage.getItem('last_faq_type');
-
       if (msg.includes('sí') || msg.includes('si') || msg.includes('claro') || msg.includes('ok') || msg.includes('dale')) {
         const respuesta = r.despedida;
         currentState = 'despedida';
@@ -240,7 +216,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     },
     esperando_respuesta_inactividad: (input, page) => {
-      // Si responde, continua normal
       const msg = input.toLowerCase();
       if (msg.includes('si') || msg.includes('sí') || msg.includes('aqui') || msg.includes('aquí')) {
         currentState = 'esperando_respuesta';
@@ -255,61 +230,75 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
-  // ENVIAR MENSAJE
+  // Enviar mensaje (con debounce y tecla Enter)
+  let submitDebounce = false;
   form.addEventListener('submit', (e) => {
     e.preventDefault();
-    if (!input.value.trim()) {
-      console.log('Entrada vacía, mensaje no enviado');
-      return;
-    }
+    if (submitDebounce || !input.value.trim()) return;
+    submitDebounce = true;
+    setTimeout(() => { submitDebounce = false; }, 500); // Debounce 500ms
 
-    try {
-      const userMsg = input.value.trim();
-      mostrarMensaje(userMsg, 'user');
-      input.value = '';
-      console.log(`Mensaje de usuario enviado en ${pagina}: ${userMsg}`);
+    const userMsg = input.value.trim();
+    mostrarMensaje(userMsg, 'user');
+    input.value = '';
 
-      // Procesar con máquina de estados
-      setTimeout(() => {
-        if (!chatbot.classList.contains('open')) return; // No procesar si cerrado
-        let respuesta = states[currentState](userMsg, pagina);
-        if (respuesta) mostrarMensaje(respuesta, 'bot');
-        sessionStorage.setItem('chat_state', currentState);
-        resetInactivityTimers();
-      }, 800);
-    } catch (error) {
-      console.error(`Error al procesar el mensaje del usuario en ${pagina}:`, error);
+    // Mostrar "escribiendo..."
+    const typing = document.createElement('div');
+    typing.classList.add('bot-msg');
+    typing.textContent = 'Escribiendo...';
+    body.appendChild(typing);
+    body.scrollTop = body.scrollHeight;
+
+    // Procesar respuesta
+    setTimeout(() => {
+      body.removeChild(typing);
+      if (!chatbot.classList.contains('open')) return;
+      let respuesta = states[currentState](userMsg, pagina);
+      if (respuesta) mostrarMensaje(respuesta, 'bot');
+      sessionStorage.setItem('chat_state', currentState);
+      resetInactivityTimers();
+    }, 800);
+  });
+
+  // Tecla Enter para submit, Esc para cerrar
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      form.dispatchEvent(new Event('submit'));
+    } else if (e.key === 'Escape') {
+      closeBtn.click();
     }
   });
 
-  // NAVEGACIÓN MÓVIL
+  // Navegación móvil mejorada (delegado)
   if (toggle && nav) {
     toggle.addEventListener('click', (e) => {
-      if (!e.target.closest('a')) {
+      if (e.target.tagName === 'DIV' && e.target.classList.contains('header-inner')) { // Mejor detección
         nav.classList.toggle('active');
-        console.log(`Navegación móvil toggled en ${pagina}`);
       }
     });
   }
 
-  // MOSTRAR MENSAJE
+  // Mostrar mensaje (mejorado con accesibilidad)
   function mostrarMensaje(texto, tipo) {
-    try {
-      if (!chatbot.classList.contains('open')) return; // No añadir si cerrado
-      const msg = document.createElement('div');
-      msg.classList.add(tipo === 'bot' ? 'bot-msg' : 'user-msg');
-      msg.innerHTML = texto.replace(/\n/g, '<br>');
-      body.appendChild(msg);
-      body.scrollTop = body.scrollHeight;
-      conversacion.push({ text: texto, type: tipo });
-      sessionStorage.setItem('chatbot_conversation', JSON.stringify(conversacion));
-      console.log(`Mensaje ${tipo} añadido en ${pagina}: ${texto}`);
-    } catch (error) {
-      console.error(`Error al mostrar mensaje en ${pagina}:`, error);
-    }
+    if (!chatbot.classList.contains('open')) return;
+    const msg = document.createElement('div');
+    msg.classList.add(tipo === 'bot' ? 'bot-msg' : 'user-msg');
+    // Usar textContent y <br> para seguridad
+    const lines = texto.split('\n');
+    lines.forEach((line, i) => {
+      if (i > 0) msg.appendChild(document.createElement('br'));
+      msg.appendChild(document.createTextNode(line));
+    });
+    body.appendChild(msg);
+    body.scrollTop = body.scrollHeight; // Scroll suave posible con CSS
+    conversacion.push({ text: texto, type: tipo });
+    sessionStorage.setItem('chatbot_conversation', JSON.stringify(conversacion));
+    // Accesibilidad: announce new message
+    msg.setAttribute('aria-live', 'polite');
   }
 
-  // BOTÓN WHATSAPP
+  // Botón WhatsApp
   function mostrarBotonWhatsApp(pagina, faqType = null) {
     const textos = {
       inicio: "Hola, vengo del chat de la página principal",
@@ -323,41 +312,37 @@ document.addEventListener('DOMContentLoaded', () => {
       contacto: "Hola, quiero contactarlos",
       cotizacion: "Hola, quiero una cotización para un proyecto de pintura"
     };
-
-    try {
-      sessionStorage.removeItem('chatbot_conversation');
-      sessionStorage.removeItem('chatbot_greeting_shown');
-      sessionStorage.removeItem('chat_state');
-      console.log(`Conversación, bandera de saludo y estado limpiados en sessionStorage para ${pagina}`);
+    sessionStorage.removeItem('chatbot_conversation');
+    sessionStorage.removeItem('chatbot_greeting_shown');
+    sessionStorage.removeItem('chat_state');
+    setTimeout(() => {
+      if (!chatbot.classList.contains('open')) return;
+      const btn = document.createElement('div');
+      btn.innerHTML = `
+        <a href="https://wa.me/573042096459?text=${encodeURIComponent(textos[faqType || pagina])}"
+           target="_blank"
+           class="btn-whatsapp-chat">
+          Continuar en WhatsApp
+        </a>
+      `;
+      body.appendChild(btn);
+      body.scrollTop = body.scrollHeight;
       setTimeout(() => {
-        if (!chatbot.classList.contains('open')) return;
-        const btn = document.createElement('div');
-        btn.innerHTML = `
-          <a href="https://wa.me/573042096459?text=${encodeURIComponent(textos[faqType || pagina])}" 
-             target="_blank" 
-             class="btn-whatsapp-chat">
-            Continuar en WhatsApp
-          </a>
-        `;
-        body.appendChild(btn);
-        body.scrollTop = body.scrollHeight;
-        console.log(`Botón de WhatsApp mostrado en ${pagina} para ${faqType || pagina}`);
-
-        setTimeout(() => {
-          if (chatbot.classList.contains('open')) {
-            chatbot.classList.remove('open');
-            chatbot.classList.add('closed');
-            openBtn.style.display = 'flex';
-            console.log(`Chatbot cerrado tras redirigir a WhatsApp en ${pagina}, botón open-chat restaurado`);
-          }
-        }, 2000);
-      }, 1000);
-    } catch (error) {
-      console.error(`Error al mostrar el botón de WhatsApp en ${pagina}:`, error);
-    }
+        if (chatbot.classList.contains('open')) {
+          chatbot.classList.add('closed');
+          chatbot.classList.remove('open');
+          openBtn.style.display = 'flex';
+        }
+      }, 2000);
+    }, 1000);
   }
 
-  // Iniciar timer de inactividad inicial si el chat se abre auto
+  // Limpiar timers al unload (rendimiento)
+  window.addEventListener('beforeunload', () => {
+    clearTimeout(inactivityTimer);
+    clearTimeout(resetTimer);
+  });
+
+  // Iniciar timers
   resetInactivityTimers();
 });
-
